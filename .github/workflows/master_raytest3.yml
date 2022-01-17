@@ -37,6 +37,6 @@ jobs:
         id: fa
         with:
           app-name: 'raytest3'
-          slot-name: 'production'
+          slot-name: 'Production'
           package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
-          publish-profile: ${{ secrets.AzureAppService_PublishProfile_181025a911bb427e954d6e1095c9b2bf }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_A743A8DDD09745259E73FC0E61A90622 }}
