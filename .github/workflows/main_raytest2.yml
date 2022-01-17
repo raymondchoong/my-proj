@@ -1,0 +1,146 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
+name: Build and deploy Node.js project to Azure Function App - raytest2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# env:
+#   AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
+#   NODE_VERSION: '14.x' # set this to the node version to use (supports 8.x, 10.x, 12.x)
+
+env:
+  DOTNET_VERSION: '3.1.x'
+  AZURE_RESOURCE_GROUP_NAME: 'mahsprae-rgp-9691215-data_warehouse_tst'
+  AZURE_FUNCTIONAPP_NAME: 'raytest2' # 'greetingservice'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '${{ github.workspace }}/RealTimeIntegrationV2/TaskMasterHPUEOL/.' # '${{ github.workspace }}/src/GreetingDemo.Function'
+  BUILD_OUTPUT_PATH: '${{ github.workspace }}/build-artifacts'
+  BUILD_PACKAGE_NAME: 'az-taskmaster-func.zip'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+    ############################################################################
+
+    build-az-function:
+     # needs: [deploy-az-infrastructure]
+      runs-on: ubuntu-latest
+      steps:
+      
+       # Makes source code accessible via $github.workspace
+       - name: 'Checking out source code ...'
+         uses: actions/checkout@v2
+
+       - name: 'Setup .NET Environment'
+         uses: actions/setup-dotnet@v1
+         with:
+           dotnet-version: ${{ env.DOTNET_VERSION }}
+       
+       - name: 'Build and package code'
+         shell: bash
+         run: |
+           publishfolder="${{ github.workspace }}/output"
+           mkdir $publishfolder
+           cd $publishfolder
+           dotnet publish ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }} --configuration Release --output .
+           mkdir ${{ env.BUILD_OUTPUT_PATH }}
+           zip -r ${{ env.BUILD_OUTPUT_PATH }}/${{ env.BUILD_PACKAGE_NAME }} .
+       
+       # Upload the code artifact, this will be used later
+       - name: 'Package Azure Function release build'
+         uses: actions/upload-artifact@v2
+         with:
+           name: build_artifacts
+           path: ${{ env.BUILD_OUTPUT_PATH }}
+           if-no-files-found: error
+
+    ############################################################################
+
+    deploy-az-function:
+      needs: [build-az-function]
+      runs-on: ubuntu-latest
+      steps:
+      
+       # Makes source code accessible via $github.workspace
+       - name: 'Checking out source code ...'
+         uses: actions/checkout@v2
+       
+       # Authentication
+       # Set up the following secrets in your repository: AZURE_CREDENTIALS
+       # For details see https://docs.microsoft.com/en-us/azure/developer/github/connect-from-azure
+      #  - name: 'Login to Azure'
+      #    uses: azure/login@v1
+      #    with:
+      #      creds: ${{ secrets.AZURE_CREDENTIALS }}
+      #      enable-AzPSSession: true
+       
+      #  - name: 'Fetching Azure Functions Publishing Profile'
+      #    id: fncapp
+      #    uses: azure/powershell@v1
+      #    with:
+      #      inlineScript: |
+      #          $profile = ""
+      #          $profile = Get-AzWebAppPublishingProfile -ResourceGroupName $env:AZURE_RESOURCE_GROUP_NAME -Name $env:AZURE_FUNCTIONAPP_NAME
+      #          $profile = $profile.Replace("`r", "").Replace("`n", "")
+      #          Write-Output "::set-output name=pubprofile::$profile"
+      #          Remove-Variable profile
+      #      azPSVersion: "latest"
+
+       - name: 'Create output directory'
+         shell: bash
+         run: |
+           mkdir ${{ env.BUILD_OUTPUT_PATH }}
+       # Fetch published code
+       - name: 'Download Azure function release build'
+         uses: actions/download-artifact@v2
+         with:
+           name: build_artifacts
+           path: ${{ env.BUILD_OUTPUT_PATH }}
+
+       # Deploy Azure functions code
+       - name: 'Run Azure Functions Action'
+         uses: azure/functions-action@v1
+         with:
+           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+           package: ${{ env.BUILD_OUTPUT_PATH }}/${{ env.BUILD_PACKAGE_NAME }}
+           publish-profile: ${{ secrets.AzureAppService_PublishProfile_b1eba74a4a224767b96180a27b8631d6 }}
+           #publish-profile: ${{ steps.fncapp.outputs.pubprofile }}
+
+
+
+
+# jobs:
+#   build-and-deploy:
+#     runs-on: windows-latest
+#     steps:
+#       - name: 'Checkout GitHub Action'
+#         uses: actions/checkout@v2
+
+#       - name: Setup Node ${{ env.NODE_VERSION }} Environment
+#         uses: actions/setup-node@v1
+#         with:
+#           node-version: ${{ env.NODE_VERSION }}
+
+#       - name: 'Resolve Project Dependencies Using Npm'
+#         shell: pwsh
+#         run: |
+#           pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+#           npm install
+#           npm run build --if-present
+#           npm run test --if-present
+#           popd
+
+#       - name: 'Run Azure Functions Action'
+#         uses: Azure/functions-action@v1
+#         id: fa
+#         with:
+#           app-name: 'raytest2'
+#           slot-name: 'production'
+#           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+#           publish-profile: ${{ secrets.AzureAppService_PublishProfile_b1eba74a4a224767b96180a27b8631d6 }}-
